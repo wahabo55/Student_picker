@@ -15,9 +15,7 @@ class StudentPicker {
         this.initializeApp();
         this.setupEventListeners();
         this.loadSession();
-    }
-
-    initializeApp() {
+    }    initializeApp() {
         const urlParams = new URLSearchParams(window.location.search);
         const view = urlParams.get('view');
         const sessionId = urlParams.get('session');
@@ -28,24 +26,26 @@ class StudentPicker {
         
         if (view === 'student') {
             this.showStudentView();
+            // Hide presenter button for students
+            const presenterBtn = document.getElementById('presenterBtn');
+            if (presenterBtn) {
+                presenterBtn.style.display = 'none';
+            }
         } else {
             this.showPresenterView();
         }
-    }    setupEventListeners() {
+    }setupEventListeners() {
         // Navigation
         const presenterBtn = document.getElementById('presenterBtn');
         const studentBtn = document.getElementById('studentBtn');
         
         if (presenterBtn) presenterBtn.addEventListener('click', () => this.showPresenterView());
-        if (studentBtn) studentBtn.addEventListener('click', () => this.showStudentView());
-          // Session management
+        if (studentBtn) studentBtn.addEventListener('click', () => this.showStudentView());        // Session management
         const generateSessionBtn = document.getElementById('generateSessionBtn');
         const connectSessionBtn = document.getElementById('connectSessionBtn');
-        const testConnectionBtn = document.getElementById('testConnectionBtn');
         
         if (generateSessionBtn) generateSessionBtn.addEventListener('click', () => this.generateNewSession());
         if (connectSessionBtn) connectSessionBtn.addEventListener('click', () => this.connectToSession());
-        if (testConnectionBtn) testConnectionBtn.addEventListener('click', () => this.testFirebaseConnection());
         
         // Presenter controls
         const startPickBtn = document.getElementById('startPickBtn');
@@ -79,7 +79,7 @@ class StudentPicker {
     }    async connectToSession() {
         const sessionIdInput = document.getElementById('sessionId').value.trim();
         if (!sessionIdInput) {
-            alert('Please enter a session ID');
+            alert('يرجى إدخال معرف الجلسة');
             return;
         }
 
@@ -93,28 +93,28 @@ class StudentPicker {
                 await this.initializeFirebase();
                 this.isConnected = true;
                 this.useFirebase = true;
-                this.updateSessionStatus('Connected to session: ' + this.sessionId + ' (Online)', true);
+                this.updateSessionStatus('متصل بالجلسة: ' + this.sessionId + ' (متصل)', true);
                 this.generateQRCode();
                 this.setupRealtimeListener();
-                console.log('✅ Connected with Firebase (Online mode)');
+                console.log('✅ متصل مع Firebase (الوضع المتصل)');
                 return;
             } catch (error) {
-                console.warn('Firebase connection failed, using local storage:', error);
+                console.warn('فشل الاتصال بـ Firebase، استخدام التخزين المحلي:', error);
             }
         }
         
         // Fallback to local storage mode
         this.useFirebase = false;
         this.isConnected = true;
-        this.updateSessionStatus('Connected to session: ' + this.sessionId + ' (Local Mode)', true);
+        this.updateSessionStatus('متصل بالجلسة: ' + this.sessionId + ' (الوضع المحلي)', true);
         this.generateQRCode();
         this.loadFromLocalStorage();
-        console.log('✅ Connected with Local Storage (Offline mode)');
+        console.log('✅ متصل مع التخزين المحلي (الوضع غير المتصل)');
         
         // Show info about local mode
         setTimeout(() => {
-            const mode = window.firebaseDB ? 'local' : 'offline';
-            alert(`ℹ️ Running in ${mode} mode.\n\n${mode === 'local' ? 'Firebase permissions need to be configured.' : 'Firebase is not available.'}\n\nStudents can still register on this device/browser.`);
+            const mode = window.firebaseDB ? 'محلي' : 'غير متصل';
+            alert(`ℹ️ يعمل في الوضع ${mode}.\n\n${mode === 'محلي' ? 'تحتاج أذونات Firebase للتكوين.' : 'Firebase غير متاح.'}\n\nيمكن للطلاب التسجيل على هذا الجهاز/المتصفح.`);
         }, 1000);
     }// Initialize Firebase connection
     async initializeFirebase() {
@@ -269,15 +269,22 @@ class StudentPicker {
         // Hide previous messages
         successDiv.classList.add('hidden');
         errorDiv.classList.add('hidden');
-        
-        if (!sessionId) {
-            errorDiv.querySelector('p').textContent = '❌ Please enter the session ID from your presenter.';
+          if (!sessionId) {
+            errorDiv.querySelector('p').textContent = '❌ يرجى إدخال معرف الجلسة من المقدم.';
             errorDiv.classList.remove('hidden');
             return;
         }
         
         if (!name || name.length < 2) {
-            errorDiv.querySelector('p').textContent = '❌ Please enter a valid name (at least 2 characters).';
+            errorDiv.querySelector('p').textContent = '❌ يرجى إدخال اسم صحيح (على الأقل حرفين).';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        // Check if already registered in this session
+        const registrationKey = `registered_${sessionId}`;
+        if (localStorage.getItem(registrationKey)) {
+            errorDiv.querySelector('p').textContent = '❌ لقد سجلت بالفعل في هذه الجلسة. امسح رمز QR جديد للتسجيل مرة أخرى.';
             errorDiv.classList.remove('hidden');
             return;
         }
@@ -291,7 +298,7 @@ class StudentPicker {
                     const sessionRef = window.firebaseRef(window.firebaseDB, `sessions/${sessionId}/students`);
                     const snapshot = await window.firebaseGet(sessionRef);
                     existingStudents = snapshot.val() ? Object.values(snapshot.val()) : [];                } catch (firebaseError) {
-                    console.warn('Firebase access failed, checking local storage:', firebaseError);
+                    console.warn('فشل الوصول لـ Firebase، فحص التخزين المحلي:', firebaseError);
                     // Fallback to local storage
                     const key = `studentPickerData_${sessionId}`;
                     const data = localStorage.getItem(key);
@@ -308,9 +315,8 @@ class StudentPicker {
             const existingStudent = existingStudents.find(student => 
                 student.name.toLowerCase() === name.toLowerCase()
             );
-            
-            if (existingStudent) {
-                errorDiv.querySelector('p').textContent = '❌ This name is already registered.';
+              if (existingStudent) {
+                errorDiv.querySelector('p').textContent = '❌ هذا الاسم مسجل بالفعل.';
                 errorDiv.classList.remove('hidden');
                 return;
             }
@@ -328,9 +334,8 @@ class StudentPicker {
                 try {
                     const studentRef = window.firebaseRef(window.firebaseDB, `sessions/${sessionId}/students/${student.id}`);
                     await window.firebaseSet(studentRef, student);
-                    saved = true;
-                } catch (firebaseError) {
-                    console.warn('Firebase save failed, using local storage:', firebaseError);
+                    saved = true;                } catch (firebaseError) {
+                    console.warn('فشل حفظ Firebase، استخدام التخزين المحلي:', firebaseError);
                 }
             }
               if (!saved) {
@@ -338,20 +343,21 @@ class StudentPicker {
                 existingStudents.push(student);
                 const key = `studentPickerData_${sessionId}`;
                 localStorage.setItem(key, JSON.stringify(existingStudents));
-            }
+            }            
+            // Mark as registered for this session
+            const registrationKey = `registered_${sessionId}`;
+            localStorage.setItem(registrationKey, 'true');
             
             successDiv.classList.remove('hidden');
             nameInput.value = '';
             sessionIdInput.value = '';
             
-            // Auto-hide success message after 3 seconds
-            setTimeout(() => {
-                successDiv.classList.add('hidden');
-            }, 3000);
+            // Hide the form to prevent re-registration
+            document.getElementById('registrationForm').style.display = 'none';
             
         } catch (error) {
-            console.error('Registration failed:', error);
-            errorDiv.querySelector('p').textContent = '❌ Registration failed. Please try again.';
+            console.error('فشل التسجيل:', error);
+            errorDiv.querySelector('p').textContent = '❌ فشل التسجيل. يرجى المحاولة مرة أخرى.';
             errorDiv.classList.remove('hidden');
         }
     }updateStudentCount() {
@@ -359,27 +365,24 @@ class StudentPicker {
         if (countElement) {
             countElement.textContent = this.students.length;
         }
-    }
-
-    toggleStudentsList() {
+    }    toggleStudentsList() {
         const listDiv = document.getElementById('studentsList');
         
         if (listDiv.classList.contains('hidden')) {
             this.displayStudentsList();
             listDiv.classList.remove('hidden');
-            document.getElementById('showStudentsBtn').textContent = '🙈 Hide Students';
+            document.getElementById('showStudentsBtn').textContent = '🙈 إخفاء الطلاب';
         } else {
             listDiv.classList.add('hidden');
-            document.getElementById('showStudentsBtn').textContent = '👀 Show Students';
+            document.getElementById('showStudentsBtn').textContent = '👀 عرض الطلاب';
         }
     }
 
     displayStudentsList() {
         const container = document.getElementById('studentsContainer');
         container.innerHTML = '';
-        
-        if (this.students.length === 0) {
-            container.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1 / -1;">No students registered yet.</p>';
+          if (this.students.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1 / -1;">لا يوجد طلاب مسجلين بعد.</p>';
             return;
         }
           this.students.forEach(student => {
@@ -393,20 +396,18 @@ class StudentPicker {
         });
     }    async removeStudent(studentId) {
         await this.removeStudentById(studentId);
-    }
-
-    async clearAllStudents() {
+    }    async clearAllStudents() {
         if (this.students.length === 0) {
-            alert('No students to clear.');
+            alert('لا يوجد طلاب لمسحهم.');
             return;
         }
         
-        if (confirm(`Are you sure you want to remove all ${this.students.length} students?`)) {
+        if (confirm(`هل أنت متأكد من حذف جميع الطلاب البالغ عددهم ${this.students.length}؟`)) {
             await this.clearAllStudentsData();
             
             // Hide students list if visible
             document.getElementById('studentsList').classList.add('hidden');
-            document.getElementById('showStudentsBtn').textContent = '👀 Show Students';
+            document.getElementById('showStudentsBtn').textContent = '👀 عرض الطلاب';
         }
     }
 
@@ -522,32 +523,31 @@ class StudentPicker {
         };
         
         tryNextMethod();
-    }
-
-    // Random Pick Logic
+    }    // Random Pick Logic - Open in new page
     startRandomPick() {
         if (!this.isConnected) {
-            alert('Please connect to a session first!');
+            alert('يرجى الاتصال بالجلسة أولاً!');
             return;
         }
         
         if (this.students.length === 0) {
-            alert('No students registered yet! Students need to scan the QR code and register first.');
+            alert('لا يوجد طلاب مسجلين بعد! يحتاج الطلاب لمسح رمز QR والتسجيل أولاً.');
             return;
         }
         
         const winnerCount = parseInt(document.getElementById('winnerCount').value);
         
         if (winnerCount > this.students.length) {
-            alert(`Cannot pick ${winnerCount} winners from ${this.students.length} students. Please reduce the number of winners.`);
+            alert(`لا يمكن اختيار ${winnerCount} فائزين من ${this.students.length} طلاب. يرجى تقليل عدد الفائزين.`);
             return;
         }
         
-        this.hideAllSections();
-        document.getElementById('wheelContainer').classList.remove('hidden');
+        // Prepare data for wheel page
+        const studentsData = encodeURIComponent(JSON.stringify(this.students));
+        const wheelUrl = `wheel.html?students=${studentsData}&winners=${winnerCount}`;
         
-        this.initializeWheel();
-        this.startSpinning();
+        // Open wheel in new window/tab
+        window.open(wheelUrl, '_blank', 'width=800,height=600');
     }
 
     hideAllSections() {
@@ -771,30 +771,9 @@ class StudentPicker {
         if (!window.firebaseDB) {
             console.log('❌ Firebase not loaded');
             return false;
-        }
-        
+        }        
         console.log('✅ Firebase loaded, checking permissions...');
         return true;
-    }
-
-    // Test Firebase connection
-    async testFirebaseConnection() {
-        console.log('🧪 Testing Firebase connection...');
-        
-        if (!window.firebaseDB) {
-            alert('❌ Firebase is not loaded. Check your internet connection.');
-            return;
-        }
-        
-        try {
-            const testRef = window.firebaseRef(window.firebaseDB, 'test');
-            await window.firebaseSet(testRef, { timestamp: Date.now() });
-            await window.firebaseRemove(testRef);
-            alert('✅ Firebase connection successful! You can use online mode.');
-        } catch (error) {
-            console.error('Firebase test failed:', error);
-            alert(`❌ Firebase connection failed: ${error.message}\n\nThis is likely due to database rules. Check the setup instructions above.`);
-        }
     }
 }
 

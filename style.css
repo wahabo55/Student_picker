@@ -500,6 +500,43 @@ body {
     color: #721c24;
 }
 
+/* RTL Support */
+html[dir="rtl"] {
+    direction: rtl;
+}
+
+html[dir="rtl"] body {
+    text-align: right;
+}
+
+html[dir="rtl"] .nav-container {
+    flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .session-info {
+    flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .control-group {
+    flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .student-item {
+    flex-direction: row-reverse;
+}
+
+/* Registered notice styling */
+.registered-notice {
+    background: #e7f3ff;
+    color: #0056b3;
+    padding: 0.8rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border: 1px solid #b3d9ff;
+}
+
 /* Utility classes */
 .hidden {
     display: none !important;

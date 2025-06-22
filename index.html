@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Random Picker</title>
+    <title>اختيار الطلاب العشوائي</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     
@@ -38,70 +38,60 @@
       window.firebaseRemove = remove;
     </script>
 </head>
-<body>
-    <!-- Navigation -->
+<body>    <!-- Navigation -->
     <nav class="navbar">
         <div class="nav-container">
-            <h1 class="logo">🎲 Student Picker</h1>
+            <h1 class="logo">🎲 اختيار الطلاب</h1>
             <div class="nav-buttons">
-                <button id="presenterBtn" class="nav-btn active">Presenter View</button>
-                <button id="studentBtn" class="nav-btn">Student Registration</button>
+                <button id="presenterBtn" class="nav-btn active">شاشة المقدم</button>
+                <button id="studentBtn" class="nav-btn">تسجيل الطلاب</button>
             </div>
         </div>
     </nav>
 
     <!-- Presenter View -->
     <div id="presenterView" class="view active">
-        <div class="container">
-            <!-- QR Code Section -->
+        <div class="container">            <!-- QR Code Section -->
             <div class="qr-section">
-                <h2>📱 Students Scan This QR Code</h2>
+                <h2>📱 امسح الرمز المربع للطلاب</h2>
                 <div class="qr-container">
                     <div id="qrcode"></div>
                 </div>
                 <p class="qr-url" id="qrUrl"></p>
-            </div>
-
-            <!-- Session Management -->
+            </div>            <!-- Session Management -->
             <div class="session-section">
-                <h3>🎯 Session Management</h3>
+                <h3>🎯 إدارة الجلسة</h3>
                 <div class="session-controls">
                     <div class="session-info">
-                        <label>Session ID:</label>
-                        <input type="text" id="sessionId" placeholder="Enter session ID or generate new">
-                        <button id="generateSessionBtn" class="btn btn-info">🎲 Generate New</button>
-                        <button id="connectSessionBtn" class="btn btn-primary">🔗 Connect</button>
-                        <button id="testConnectionBtn" class="btn btn-info">🧪 Test Firebase</button>
+                        <label>معرف الجلسة:</label>
+                        <input type="text" id="sessionId" placeholder="أدخل معرف الجلسة أو أنشئ جديد">
+                        <button id="generateSessionBtn" class="btn btn-info">🎲 إنشاء جديد</button>                        <button id="connectSessionBtn" class="btn btn-primary">🔗 الاتصال</button>
                     </div>
                     <div class="session-status">
-                        <span id="sessionStatus">Not connected</span>
+                        <span id="sessionStatus">غير متصل</span>
                     </div>
                 </div>
-            </div>
-
-            <!-- Controls Section -->
+            </div>            <!-- Controls Section -->
             <div class="controls-section">
                 <div class="student-count">
-                    <h3>👥 Registered Students: <span id="studentCount">0</span></h3>
+                    <h3>👥 الطلاب المسجلين: <span id="studentCount">0</span></h3>
                 </div>
                 
                 <div class="controls">
                     <div class="control-group">
-                        <label for="winnerCount">Number of Winners:</label>
+                        <label for="winnerCount">عدد الفائزين:</label>
                         <input type="number" id="winnerCount" min="1" max="10" value="1">
                     </div>
                     
                     <div class="control-buttons">
-                        <button id="startPickBtn" class="btn btn-primary">🎯 Start Random Pick</button>
-                        <button id="clearStudentsBtn" class="btn btn-secondary">🗑️ Clear All Students</button>
-                        <button id="showStudentsBtn" class="btn btn-info">👀 Show Students</button>
+                        <button id="startPickBtn" class="btn btn-primary">🎯 ابدأ الاختيار العشوائي</button>
+                        <button id="clearStudentsBtn" class="btn btn-secondary">🗑️ مسح جميع الطلاب</button>
+                        <button id="showStudentsBtn" class="btn btn-info">👀 عرض الطلاب</button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Students List -->
+            </div>            <!-- Students List -->
             <div id="studentsList" class="students-list hidden">
-                <h3>📋 Registered Students</h3>
+                <h3>📋 الطلاب المسجلين</h3>
                 <div id="studentsContainer"></div>
             </div>
 
@@ -152,34 +142,33 @@
                 </details>
             </div>
         </div>
-    </div>
-
-    <!-- Student Registration View -->
+    </div>    <!-- Student Registration View -->
     <div id="studentView" class="view">
         <div class="container">
             <div class="registration-form">
-                <h2>📝 Student Registration</h2>
-                <p>Enter your full name to join the random pick!</p>
+                <h2>📝 تسجيل الطالب</h2>
+                <p>أدخل اسمك الكامل للانضمام للاختيار العشوائي!</p>
                 
                 <form id="registrationForm">
                     <div class="form-group">
-                        <label for="studentSessionId">Session ID:</label>
-                        <input type="text" id="studentSessionId" placeholder="Enter session ID from presenter" required>
+                        <label for="studentSessionId">معرف الجلسة:</label>
+                        <input type="text" id="studentSessionId" placeholder="أدخل معرف الجلسة من المقدم" required>
                     </div>
                     <div class="form-group">
-                        <label for="studentName">Full Name:</label>
-                        <input type="text" id="studentName" placeholder="Enter your full name" required>
+                        <label for="studentName">الاسم الكامل:</label>
+                        <input type="text" id="studentName" placeholder="أدخل اسمك الكامل" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">✅ Register</button>
+                    <button type="submit" class="btn btn-primary">✅ تسجيل</button>
                 </form>
 
                 <div id="registrationSuccess" class="success-message hidden">
-                    <h3>🎉 Registration Successful!</h3>
-                    <p>You've been added to the random pick. Good luck!</p>
+                    <h3>🎉 تم التسجيل بنجاح!</h3>
+                    <p>تم إضافتك للاختيار العشوائي. حظا موفقا!</p>
+                    <p class="registered-notice">تم تسجيلك في هذه الجلسة. لا يمكنك التسجيل مرة أخرى حتى تمسح رمز QR جديد.</p>
                 </div>
 
                 <div id="registrationError" class="error-message hidden">
-                    <p>❌ This name is already registered or invalid.</p>
+                    <p>❌ هذا الاسم مسجل بالفعل أو غير صحيح.</p>
                 </div>
             </div>
         </div>

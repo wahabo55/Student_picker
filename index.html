@@ -5,6 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>Student Random Picker</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+      import { getDatabase, ref, set, get, onValue, push, remove } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+
+      // Your web app's Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyCoRGKq0i6PHnLT0G8uuKAkngMKCnYFp9s",
+        authDomain: "student-picker-11267.firebaseapp.com",
+        databaseURL: "https://student-picker-11267-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "student-picker-11267",
+        storageBucket: "student-picker-11267.firebasestorage.app",
+        messagingSenderId: "568096652646",
+        appId: "1:568096652646:web:ede3891ab9684b3df99ca7"
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const database = getDatabase(app);
+      
+      // Make Firebase available globally
+      window.firebaseDB = database;
+      window.firebaseRef = ref;
+      window.firebaseSet = set;
+      window.firebaseGet = get;
+      window.firebaseOnValue = onValue;
+      window.firebasePush = push;
+      window.firebaseRemove = remove;
+    </script>
 </head>
 <body>
     <!-- Navigation -->
@@ -20,13 +51,29 @@
 
     <!-- Presenter View -->
     <div id="presenterView" class="view active">
-        <div class="container">
-            <!-- QR Code Section -->
+        <div class="container">            <!-- QR Code Section -->
             <div class="qr-section">
-                <h2>📱 Students Scan This QR Code</h2>                <div class="qr-container">
+                <h2>📱 Students Scan This QR Code</h2>
+                <div class="qr-container">
                     <div id="qrcode"></div>
                 </div>
                 <p class="qr-url" id="qrUrl"></p>
+            </div>
+
+            <!-- Session Management -->
+            <div class="session-section">
+                <h3>🎯 Session Management</h3>
+                <div class="session-controls">
+                    <div class="session-info">
+                        <label>Session ID:</label>
+                        <input type="text" id="sessionId" placeholder="Enter session ID or generate new">
+                        <button id="generateSessionBtn" class="btn btn-info">🎲 Generate New</button>
+                        <button id="connectSessionBtn" class="btn btn-primary">🔗 Connect</button>
+                    </div>
+                    <div class="session-status">
+                        <span id="sessionStatus">Not connected</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Controls Section -->
@@ -79,8 +126,11 @@
             <div class="registration-form">
                 <h2>📝 Student Registration</h2>
                 <p>Enter your full name to join the random pick!</p>
-                
-                <form id="registrationForm">
+                  <form id="registrationForm">
+                    <div class="form-group">
+                        <label for="studentSessionId">Session ID:</label>
+                        <input type="text" id="studentSessionId" placeholder="Enter session ID from presenter" required>
+                    </div>
                     <div class="form-group">
                         <label for="studentName">Full Name:</label>
                         <input type="text" id="studentName" placeholder="Enter your full name" required>
@@ -98,8 +148,6 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <script src="script.js"></script>
+    </div>    <script src="script_new.js"></script>
 </body>
 </html>

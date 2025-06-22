@@ -265,21 +265,9 @@ class StudentPicker {
         const name = nameInput.value.trim();
         const successDiv = document.getElementById('registrationSuccess');
         const errorDiv = document.getElementById('registrationError');
-        
-        // Hide previous messages
+          // Hide previous messages
         successDiv.classList.add('hidden');
         errorDiv.classList.add('hidden');
-          if (!sessionId) {
-            errorDiv.querySelector('p').textContent = '❌ يرجى إدخال معرف الجلسة من المقدم.';
-            errorDiv.classList.remove('hidden');
-            return;
-        }
-        
-        if (!name || name.length < 2) {
-            errorDiv.querySelector('p').textContent = '❌ يرجى إدخال اسم صحيح (على الأقل حرفين).';
-            errorDiv.classList.remove('hidden');
-            return;
-        }
         
         // Check if already registered in this session
         const registrationKey = `registered_${sessionId}`;
@@ -288,6 +276,17 @@ class StudentPicker {
             errorDiv.classList.remove('hidden');
             return;
         }
+        
+        if (!sessionId) {
+            errorDiv.querySelector('p').textContent = '❌ يرجى إدخال معرف الجلسة من المقدم.';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        if (!name || name.length < 2) {
+            errorDiv.querySelector('p').textContent = '❌ يرجى إدخال اسم صحيح (على الأقل حرفين).';
+            errorDiv.classList.remove('hidden');
+            return;        }
         
         try {
             let existingStudents = [];
@@ -342,11 +341,12 @@ class StudentPicker {
                 // Save to local storage
                 existingStudents.push(student);
                 const key = `studentPickerData_${sessionId}`;
-                localStorage.setItem(key, JSON.stringify(existingStudents));
-            }            
-            // Mark as registered for this session
-            const registrationKey = `registered_${sessionId}`;
+                localStorage.setItem(key, JSON.stringify(existingStudents));            }              // Mark as registered for this session
             localStorage.setItem(registrationKey, 'true');
+            
+            // Setup wheel event listener now that we have session ID
+            this.sessionId = sessionId;
+            this.setupWheelEventListener();
             
             successDiv.classList.remove('hidden');
             nameInput.value = '';
@@ -421,9 +421,7 @@ class StudentPicker {
         const url = new URL(window.location);
         url.searchParams.delete('view');
         window.history.replaceState({}, '', url);
-    }
-
-    showStudentView() {
+    }    showStudentView() {
         document.getElementById('presenterView').classList.remove('active');
         document.getElementById('studentView').classList.add('active');
         document.getElementById('presenterBtn').classList.remove('active');
@@ -432,7 +430,12 @@ class StudentPicker {
         const url = new URL(window.location);
         url.searchParams.set('view', 'student');
         window.history.replaceState({}, '', url);
-    }    // QR Code Generation
+        
+        // Setup wheel event listener for students
+        if (this.sessionId) {
+            this.setupWheelEventListener();
+        }
+    }// QR Code Generation
     generateQRCode() {
         const qrContainer = document.getElementById('qrcode');
         if (!qrContainer) {
@@ -523,7 +526,7 @@ class StudentPicker {
         };
         
         tryNextMethod();
-    }    // Random Pick Logic - Open in new page
+    }    // Random Pick Logic - Open in new page and broadcast to students
     startRandomPick() {
         if (!this.isConnected) {
             alert('يرجى الاتصال بالجلسة أولاً!');
@@ -542,9 +545,16 @@ class StudentPicker {
             return;
         }
         
+        // Broadcast wheel start event to all students
+        this.broadcastWheelEvent('start', {
+            students: this.students,
+            winnerCount: winnerCount,
+            timestamp: Date.now()
+        });
+        
         // Prepare data for wheel page
         const studentsData = encodeURIComponent(JSON.stringify(this.students));
-        const wheelUrl = `wheel.html?students=${studentsData}&winners=${winnerCount}`;
+        const wheelUrl = `wheel.html?students=${studentsData}&winners=${winnerCount}&session=${this.sessionId}`;
         
         // Open wheel in new window/tab
         window.open(wheelUrl, '_blank', 'width=800,height=600');
@@ -775,6 +785,253 @@ class StudentPicker {
         console.log('✅ Firebase loaded, checking permissions...');
         return true;
     }
+
+    // Broadcast wheel events to students
+    async broadcastWheelEvent(eventType, data) {
+        if (!this.sessionId) return;
+        
+        const eventData = {
+            type: eventType,
+            data: data,
+            timestamp: Date.now()
+        };
+        
+        try {
+            if (this.useFirebase && window.firebaseDB) {
+                const eventRef = window.firebaseRef(window.firebaseDB, `sessions/${this.sessionId}/wheelEvent`);
+                await window.firebaseSet(eventRef, eventData);
+                console.log('✅ تم بث حدث العجلة:', eventType);
+            } else {
+                // Local storage fallback
+                const key = `wheelEvent_${this.sessionId}`;
+                localStorage.setItem(key, JSON.stringify(eventData));
+                console.log('✅ تم حفظ حدث العجلة محلياً:', eventType);
+            }
+        } catch (error) {
+            console.error('فشل في بث حدث العجلة:', error);
+        }
+    }
+
+    // Listen for wheel events (for students)
+    setupWheelEventListener() {
+        if (!this.sessionId) return;
+        
+        if (this.useFirebase && window.firebaseDB) {
+            const eventRef = window.firebaseRef(window.firebaseDB, `sessions/${this.sessionId}/wheelEvent`);
+            window.firebaseOnValue(eventRef, (snapshot) => {
+                const eventData = snapshot.val();
+                if (eventData) {
+                    this.handleWheelEvent(eventData);
+                }
+            }, (error) => {
+                console.warn('خطأ في مستمع أحداث العجلة:', error);
+            });
+        }
+    }
+
+    // Handle wheel events on student side
+    handleWheelEvent(eventData) {
+        if (!eventData || !eventData.type) return;
+        
+        switch (eventData.type) {
+            case 'start':
+                this.showWheelToStudent(eventData.data);
+                break;
+            case 'spinning':
+                this.updateWheelRotation(eventData.data);
+                break;
+            case 'result':
+                this.showResultsToStudent(eventData.data);
+                break;
+            case 'reset':
+                this.hideWheelFromStudent();
+                break;
+        }
+    }
+
+    // Show wheel to student
+    showWheelToStudent(data) {
+        // Hide registration form and show wheel
+        document.getElementById('registrationForm').style.display = 'none';
+        
+        // Create wheel container if it doesn't exist
+        let wheelContainer = document.getElementById('studentWheelContainer');
+        if (!wheelContainer) {
+            wheelContainer = document.createElement('div');
+            wheelContainer.id = 'studentWheelContainer';
+            wheelContainer.className = 'student-wheel-container';
+            wheelContainer.innerHTML = `
+                <div class="wheel-section">
+                    <h2>🎯 جاري الاختيار العشوائي...</h2>
+                    <div class="wheel-wrapper">
+                        <canvas id="studentWheel" width="300" height="300"></canvas>
+                        <div class="wheel-pointer">▼</div>
+                    </div>
+                    <p class="wheel-status" id="wheelStatus">انتظر النتيجة...</p>
+                </div>
+                <div class="results-section hidden" id="studentResults">
+                    <h2>🎉 النتائج!</h2>
+                    <div id="studentWinnersList"></div>
+                </div>
+            `;
+            
+            const container = document.querySelector('.registration-form');
+            container.appendChild(wheelContainer);
+        }
+        
+        wheelContainer.style.display = 'block';
+        
+        // Initialize wheel with student data
+        this.studentWheelData = data;
+        this.initializeStudentWheel();
+        this.drawStudentWheel();
+        
+        // Start spinning animation
+        setTimeout(() => {
+            this.startStudentWheelSpin();
+        }, 1000);
+    }
+
+    // Initialize student wheel
+    initializeStudentWheel() {
+        const canvas = document.getElementById('studentWheel');
+        if (!canvas) return;
+        
+        this.studentWheelCtx = canvas.getContext('2d');
+        this.studentWheelRotation = 0;
+        this.studentWheelSpinning = false;
+    }
+
+    // Draw student wheel
+    drawStudentWheel() {
+        if (!this.studentWheelCtx || !this.studentWheelData) return;
+        
+        const ctx = this.studentWheelCtx;
+        const canvas = document.getElementById('studentWheel');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = Math.min(centerX, centerY) - 10;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(this.studentWheelRotation);
+        
+        const students = this.studentWheelData.students;
+        const studentCount = students.length;
+        const anglePerSegment = (2 * Math.PI) / studentCount;
+        
+        const colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+        ];
+        
+        for (let i = 0; i < studentCount; i++) {
+            const startAngle = i * anglePerSegment;
+            const endAngle = (i + 1) * anglePerSegment;
+            const color = colors[i % colors.length];
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, startAngle, endAngle);
+            ctx.lineTo(0, 0);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.save();
+            ctx.rotate(startAngle + anglePerSegment / 2);
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 10px Arial';
+            
+            const name = students[i].name;
+            const truncatedName = name.length > 12 ? name.substring(0, 9) + '...' : name;
+            ctx.fillText(truncatedName, radius * 0.4, 3);
+            ctx.restore();
+        }
+        
+        ctx.beginPath();
+        ctx.arc(0, 0, 15, 0, 2 * Math.PI);
+        ctx.fillStyle = '#333';
+        ctx.fill();
+        
+        ctx.restore();
+    }
+
+    // Start student wheel spinning
+    startStudentWheelSpin() {
+        if (this.studentWheelSpinning) return;
+        
+        this.studentWheelSpinning = true;
+        this.studentWheelStartTime = Date.now();
+        this.studentWheelDuration = 4000; // 4 seconds
+        this.studentWheelStartRotation = this.studentWheelRotation;
+        this.studentWheelTargetRotation = this.studentWheelRotation + (8 + Math.random() * 4) * 2 * Math.PI;
+        
+        document.getElementById('wheelStatus').textContent = 'العجلة تدور...';
+        
+        this.animateStudentWheel();
+    }
+
+    // Animate student wheel
+    animateStudentWheel() {
+        if (!this.studentWheelSpinning) return;
+        
+        const elapsed = Date.now() - this.studentWheelStartTime;
+        const progress = Math.min(elapsed / this.studentWheelDuration, 1);
+        
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        this.studentWheelRotation = this.studentWheelStartRotation + 
+            (this.studentWheelTargetRotation - this.studentWheelStartRotation) * easeOut;
+        
+        this.drawStudentWheel();
+        
+        if (progress < 1) {
+            requestAnimationFrame(() => this.animateStudentWheel());
+        } else {
+            this.studentWheelSpinning = false;
+            document.getElementById('wheelStatus').textContent = 'انتظر النتيجة...';
+        }
+    }
+
+    // Show results to student
+    showResultsToStudent(resultData) {
+        const wheelSection = document.querySelector('.wheel-section');
+        const resultsSection = document.getElementById('studentResults');
+        const winnersList = document.getElementById('studentWinnersList');
+        
+        if (wheelSection) wheelSection.style.display = 'none';
+        if (resultsSection) {
+            resultsSection.classList.remove('hidden');
+            resultsSection.style.display = 'block';
+        }
+        
+        if (winnersList && resultData.winners) {
+            winnersList.innerHTML = '';
+            resultData.winners.forEach((winner, index) => {
+                const winnerDiv = document.createElement('div');
+                winnerDiv.className = 'winner-item';
+                winnerDiv.style.animationDelay = `${index * 0.3}s`;
+                winnerDiv.innerHTML = `🏆 ${this.escapeHtml(winner.name)}`;
+                winnersList.appendChild(winnerDiv);
+            });
+        }
+    }
+
+    // Hide wheel from student
+    hideWheelFromStudent() {
+        const wheelContainer = document.getElementById('studentWheelContainer');
+        if (wheelContainer) {
+            wheelContainer.style.display = 'none';
+        }
+        
+        // Show registration form again
+        document.getElementById('registrationForm').style.display = 'block';
+    }
+
+    // ...existing code...
 }
 
 // Initialize the app

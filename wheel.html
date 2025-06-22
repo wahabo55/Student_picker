@@ -217,8 +217,7 @@
     </div>
 
     <script>
-        class WheelPicker {
-            constructor() {
+        class WheelPicker {            constructor() {
                 this.students = [];
                 this.isSpinning = false;
                 this.wheelCanvas = null;
@@ -227,16 +226,20 @@
                 this.spinDuration = 0;
                 this.spinStartTime = 0;
                 this.winnerCount = 1;
+                this.sessionId = null;
                 
                 this.initializeWheel();
                 this.setupEventListeners();
                 this.loadStudentsFromUrl();
-            }
-
-            loadStudentsFromUrl() {
+            }            loadStudentsFromUrl() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const studentsData = urlParams.get('students');
                 const winnerCount = urlParams.get('winners');
+                const sessionId = urlParams.get('session');
+                
+                if (sessionId) {
+                    this.sessionId = sessionId;
+                }
                 
                 if (studentsData) {
                     try {
@@ -286,9 +289,7 @@
                 this.currentRotation = 0;
                 this.startRotation = 0;
                 this.targetRotation = 0;
-            }
-
-            drawWheel() {
+            }            drawWheel(highlightIndex = -1) {
                 if (!this.wheelCtx || this.students.length === 0) return;
                 
                 const ctx = this.wheelCtx;
@@ -313,22 +314,27 @@
                 for (let i = 0; i < studentCount; i++) {
                     const startAngle = i * anglePerSegment;
                     const endAngle = (i + 1) * anglePerSegment;
-                    const color = colors[i % colors.length];
+                    let color = colors[i % colors.length];
+                    
+                    // Highlight the selected segment
+                    if (i === highlightIndex) {
+                        color = '#FFD700'; // Gold color for winner
+                    }
                     
                     ctx.beginPath();
                     ctx.arc(0, 0, radius, startAngle, endAngle);
                     ctx.lineTo(0, 0);
                     ctx.fillStyle = color;
                     ctx.fill();
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = i === highlightIndex ? '#FF0000' : '#fff';
+                    ctx.lineWidth = i === highlightIndex ? 4 : 2;
                     ctx.stroke();
                     
                     ctx.save();
                     ctx.rotate(startAngle + anglePerSegment / 2);
                     ctx.textAlign = 'left';
                     ctx.fillStyle = '#333';
-                    ctx.font = 'bold 12px Arial';
+                    ctx.font = i === highlightIndex ? 'bold 14px Arial' : 'bold 12px Arial';
                     
                     const name = this.students[i].name;
                     const truncatedName = name.length > 15 ? name.substring(0, 12) + '...' : name;
@@ -389,31 +395,60 @@
                 setTimeout(() => {
                     this.selectWinners();
                 }, 500);
-            }
-
-            selectWinners() {
+            }            selectWinners() {
                 const studentCount = this.students.length;
                 
-                const normalizedRotation = (this.currentRotation % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
-                const pointerAngle = (2 * Math.PI - normalizedRotation + Math.PI / 2) % (2 * Math.PI);
+                // Normalize the rotation to [0, 2π]
+                const normalizedRotation = ((this.currentRotation % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
+                
+                // Calculate the angle of each segment
                 const segmentSize = (2 * Math.PI) / studentCount;
-                const winnerIndex = Math.floor(pointerAngle / segmentSize);
+                
+                // The pointer is at the top (12 o'clock position), so we need to calculate
+                // which segment the pointer is pointing to after the wheel stops
+                // We subtract the rotation from π/2 (top position) and normalize
+                const pointerAngle = (Math.PI / 2 - normalizedRotation + 2 * Math.PI) % (2 * Math.PI);
+                
+                // Calculate which segment the pointer is in
+                // We need to account for the fact that segments are drawn starting from 0 radians
+                let winnerIndex = Math.floor(pointerAngle / segmentSize);
+                
+                // Ensure the index is within bounds
+                winnerIndex = winnerIndex % studentCount;
+                if (winnerIndex < 0) winnerIndex = studentCount + winnerIndex;
+                
+                console.log('Debug info:');
+                console.log('Current rotation:', this.currentRotation);
+                console.log('Normalized rotation:', normalizedRotation);
+                console.log('Pointer angle:', pointerAngle);
+                console.log('Segment size:', segmentSize);
+                console.log('Winner index:', winnerIndex);
+                console.log('Selected student:', this.students[winnerIndex]);
+                
+                // Highlight the selected segment
+                this.drawWheel(winnerIndex);
                 
                 const winners = [];
                 const availableStudents = [...this.students];
                 
+                // Add the student that the pointer is pointing to
                 if (availableStudents[winnerIndex]) {
                     winners.push(availableStudents[winnerIndex]);
                     availableStudents.splice(winnerIndex, 1);
                 }
                 
+                // Add additional random winners if needed
                 for (let i = 1; i < this.winnerCount && availableStudents.length > 0; i++) {
                     const randomIndex = Math.floor(Math.random() * availableStudents.length);
                     winners.push(availableStudents[randomIndex]);
                     availableStudents.splice(randomIndex, 1);
                 }
-                
-                this.displayResults(winners);
+                  // Show results after a delay to let users see the highlighted selection
+                setTimeout(() => {
+                    this.displayResults(winners);
+                    // Broadcast results to students
+                    this.broadcastResults(winners);
+                }, 1500);
             }
 
             displayResults(winners) {
@@ -444,6 +479,35 @@
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            // Broadcast results to students
+            async broadcastResults(winners) {
+                if (!this.sessionId) return;
+                
+                const resultData = {
+                    type: 'result',
+                    data: {
+                        winners: winners,
+                        timestamp: Date.now()
+                    },
+                    timestamp: Date.now()
+                };
+                
+                try {
+                    if (window.firebaseDB) {
+                        const eventRef = window.firebaseRef(window.firebaseDB, `sessions/${this.sessionId}/wheelEvent`);
+                        await window.firebaseSet(eventRef, resultData);
+                        console.log('✅ تم بث النتائج للطلاب');
+                    } else {
+                        // Local storage fallback
+                        const key = `wheelEvent_${this.sessionId}`;
+                        localStorage.setItem(key, JSON.stringify(resultData));
+                        console.log('✅ تم حفظ النتائج محلياً');
+                    }
+                } catch (error) {
+                    console.error('فشل في بث النتائج:', error);
+                }
             }
         }
 

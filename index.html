@@ -71,6 +71,7 @@
                         <input type="text" id="sessionId" placeholder="Enter session ID or generate new">
                         <button id="generateSessionBtn" class="btn btn-info">🎲 Generate New</button>
                         <button id="connectSessionBtn" class="btn btn-primary">🔗 Connect</button>
+                        <button id="testConnectionBtn" class="btn btn-info">🧪 Test Firebase</button>
                     </div>
                     <div class="session-status">
                         <span id="sessionStatus">Not connected</span>
@@ -118,6 +119,37 @@
                 <h2>🎉 Winners!</h2>
                 <div id="winnersList"></div>
                 <button id="newPickBtn" class="btn btn-primary">🔄 New Pick</button>
+            </div>
+
+            <!-- Firebase Setup Help -->
+            <div class="firebase-help" id="firebaseHelp" style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 10px; padding: 1rem; margin-bottom: 2rem; display: none;">
+                <h4 style="color: #856404; margin-bottom: 0.5rem;">🔧 Firebase Setup Required for Multi-Device Support</h4>
+                <p style="color: #856404; margin-bottom: 1rem; font-size: 0.9rem;">
+                    For students to register from their own devices, you need to configure Firebase Realtime Database rules.
+                </p>
+                <details style="color: #856404;">
+                    <summary style="cursor: pointer; font-weight: bold;">Click here for setup instructions</summary>
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.7); border-radius: 5px;">
+                        <ol style="margin: 0; padding-left: 1.5rem;">
+                            <li>Go to <a href="https://console.firebase.google.com/" target="_blank" style="color: #667eea;">Firebase Console</a></li>
+                            <li>Select your project: <strong>student-picker-11267</strong></li>
+                            <li>Go to <strong>Realtime Database</strong> → <strong>Rules</strong></li>
+                            <li>Replace the rules with:
+                                <pre style="background: #f8f9fa; padding: 0.5rem; border-radius: 3px; margin: 0.5rem 0; font-size: 0.8rem;">{
+  "rules": {
+    "sessions": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}</pre>
+                            </li>
+                            <li>Click <strong>Publish</strong></li>
+                            <li>Refresh this page</li>
+                        </ol>
+                        <p style="margin-top: 1rem; font-size: 0.8rem;"><strong>Note:</strong> These rules allow public access. For production use, implement proper authentication.</p>
+                    </div>
+                </details>
             </div>
         </div>
     </div>

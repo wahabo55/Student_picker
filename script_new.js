@@ -9,6 +9,8 @@ class StudentPicker {
         this.spinStartTime = 0;
         this.sessionId = null;
         this.isConnected = false;
+        this.useFirebase = true;
+        this.localStorageKey = 'studentPickerData';
         
         this.initializeApp();
         this.setupEventListeners();
@@ -73,9 +75,7 @@ class StudentPicker {
         const sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         document.getElementById('sessionId').value = sessionId;
         this.connectToSession();
-    }
-
-    async connectToSession() {
+    }    async connectToSession() {
         const sessionIdInput = document.getElementById('sessionId').value.trim();
         if (!sessionIdInput) {
             alert('Please enter a session ID');
@@ -86,17 +86,28 @@ class StudentPicker {
         localStorage.setItem('pickerSessionId', this.sessionId);
         
         try {
+            // Try Firebase first
             await this.initializeFirebase();
             this.isConnected = true;
-            this.updateSessionStatus('Connected to session: ' + this.sessionId, true);
+            this.useFirebase = true;
+            this.updateSessionStatus('Connected to session: ' + this.sessionId + ' (Online)', true);
             this.generateQRCode();
             this.setupRealtimeListener();
         } catch (error) {
-            console.error('Failed to connect to session:', error);
-            this.updateSessionStatus('Failed to connect', false);
-            this.isConnected = false;
+            console.warn('Firebase connection failed, using local storage:', error);
+            // Fallback to local storage
+            this.useFirebase = false;
+            this.isConnected = true;
+            this.updateSessionStatus('Connected to session: ' + this.sessionId + ' (Local Mode)', true);
+            this.generateQRCode();
+            this.loadFromLocalStorage();
+            
+            // Show warning about local mode
+            setTimeout(() => {
+                alert('⚠️ Running in local mode. Students must register on the same device/browser. For multi-device support, please check Firebase configuration.');
+            }, 1000);
         }
-    }    // Initialize Firebase connection
+    }// Initialize Firebase connection
     async initializeFirebase() {
         if (!window.firebaseDB) {
             throw new Error('Firebase not initialized. Please check your internet connection and Firebase configuration.');
@@ -114,17 +125,19 @@ class StudentPicker {
             console.error('Error initializing session:', error);
             throw error;
         }
-    }
-
-    // Setup real-time listener for student changes
+    }    // Setup real-time listener for student changes
     setupRealtimeListener() {
-        if (!this.sessionRef) return;
+        if (!this.sessionRef || !this.useFirebase) return;
         
         window.firebaseOnValue(this.sessionRef, (snapshot) => {
             const data = snapshot.val();
             this.students = data ? Object.values(data) : [];
             this.updateStudentCount();
             this.displayStudentsList();
+        }, (error) => {
+            console.warn('Firebase listener error, falling back to local storage:', error);
+            this.useFirebase = false;
+            this.loadFromLocalStorage();
         });
     }
 
@@ -132,9 +145,7 @@ class StudentPicker {
         const statusElement = document.getElementById('sessionStatus');
         statusElement.textContent = message;
         statusElement.className = connected ? 'session-status connected' : 'session-status disconnected';
-    }
-
-    // Firebase database operations
+    }    // Firebase database operations
     async saveStudentToFirebase(student) {
         if (!this.sessionRef) return false;
         
@@ -171,6 +182,61 @@ class StudentPicker {
             console.error('Failed to clear students from Firebase:', error);
             return false;
         }
+    }
+
+    // Unified student management methods
+    async addStudent(student) {
+        if (this.useFirebase) {
+            const success = await this.saveStudentToFirebase(student);
+            if (!success) {
+                // Fallback to local storage if Firebase fails
+                this.students.push(student);
+                this.saveToLocalStorage();
+                this.updateStudentCount();
+                this.displayStudentsList();
+            }
+        } else {
+            this.students.push(student);
+            this.saveToLocalStorage();
+            this.updateStudentCount();
+            this.displayStudentsList();
+        }
+    }
+
+    async removeStudentById(studentId) {
+        if (this.useFirebase) {
+            const success = await this.removeStudentFromFirebase(studentId);
+            if (!success) {
+                // Fallback to local storage if Firebase fails
+                this.students = this.students.filter(s => s.id !== studentId);
+                this.saveToLocalStorage();
+                this.updateStudentCount();
+                this.displayStudentsList();
+            }
+        } else {
+            this.students = this.students.filter(s => s.id !== studentId);
+            this.saveToLocalStorage();
+            this.updateStudentCount();
+            this.displayStudentsList();
+        }
+    }
+
+    async clearAllStudentsData() {
+        if (this.useFirebase) {
+            const success = await this.clearAllStudentsFromFirebase();
+            if (!success) {
+                // Fallback to local storage if Firebase fails
+                this.students = [];
+                this.saveToLocalStorage();
+                this.updateStudentCount();
+                this.displayStudentsList();
+            }
+        } else {
+            this.students = [];
+            this.saveToLocalStorage();
+            this.updateStudentCount();
+            this.displayStudentsList();
+        }
     }    async registerStudent(event) {
         event.preventDefault();
         
@@ -198,15 +264,29 @@ class StudentPicker {
         }
         
         try {
-            // Connect to Firebase for this session
-            const sessionRef = window.firebaseRef(window.firebaseDB, `sessions/${sessionId}/students`);
+            let existingStudents = [];
             
-            // Check existing students
-            const snapshot = await window.firebaseGet(sessionRef);
-            const existingStudents = snapshot.val() || {};
+            if (window.firebaseDB) {
+                // Try Firebase first
+                try {
+                    const sessionRef = window.firebaseRef(window.firebaseDB, `sessions/${sessionId}/students`);
+                    const snapshot = await window.firebaseGet(sessionRef);
+                    existingStudents = snapshot.val() ? Object.values(snapshot.val()) : [];                } catch (firebaseError) {
+                    console.warn('Firebase access failed, checking local storage:', firebaseError);
+                    // Fallback to local storage
+                    const key = `studentPickerData_${sessionId}`;
+                    const data = localStorage.getItem(key);
+                    existingStudents = data ? JSON.parse(data) : [];
+                }
+            } else {
+                // Use local storage directly
+                const key = `studentPickerData_${sessionId}`;
+                const data = localStorage.getItem(key);
+                existingStudents = data ? JSON.parse(data) : [];
+            }
             
             // Check if name already exists (case insensitive)
-            const existingStudent = Object.values(existingStudents).find(student => 
+            const existingStudent = existingStudents.find(student => 
                 student.name.toLowerCase() === name.toLowerCase()
             );
             
@@ -223,9 +303,23 @@ class StudentPicker {
                 registeredAt: new Date().toISOString()
             };
             
-            // Save to Firebase
-            const studentRef = window.firebaseRef(window.firebaseDB, `sessions/${sessionId}/students/${student.id}`);
-            await window.firebaseSet(studentRef, student);
+            // Try to save to Firebase first, fallback to local storage
+            let saved = false;
+            if (window.firebaseDB) {
+                try {
+                    const studentRef = window.firebaseRef(window.firebaseDB, `sessions/${sessionId}/students/${student.id}`);
+                    await window.firebaseSet(studentRef, student);
+                    saved = true;
+                } catch (firebaseError) {
+                    console.warn('Firebase save failed, using local storage:', firebaseError);
+                }
+            }
+              if (!saved) {
+                // Save to local storage
+                existingStudents.push(student);
+                const key = `studentPickerData_${sessionId}`;
+                localStorage.setItem(key, JSON.stringify(existingStudents));
+            }
             
             successDiv.classList.remove('hidden');
             nameInput.value = '';
@@ -238,10 +332,10 @@ class StudentPicker {
             
         } catch (error) {
             console.error('Registration failed:', error);
-            errorDiv.querySelector('p').textContent = '❌ Registration failed. Please check the session ID and try again.';
+            errorDiv.querySelector('p').textContent = '❌ Registration failed. Please try again.';
             errorDiv.classList.remove('hidden');
         }
-    }    updateStudentCount() {
+    }updateStudentCount() {
         const countElement = document.getElementById('studentCount');
         if (countElement) {
             countElement.textContent = this.students.length;
@@ -279,8 +373,7 @@ class StudentPicker {
             container.appendChild(studentDiv);
         });
     }    async removeStudent(studentId) {
-        await this.removeStudentFromFirebase(studentId);
-        // The real-time listener will update the UI automatically
+        await this.removeStudentById(studentId);
     }
 
     async clearAllStudents() {
@@ -290,7 +383,7 @@ class StudentPicker {
         }
         
         if (confirm(`Are you sure you want to remove all ${this.students.length} students?`)) {
-            await this.clearAllStudentsFromFirebase();
+            await this.clearAllStudentsData();
             
             // Hide students list if visible
             document.getElementById('studentsList').classList.add('hidden');
@@ -590,6 +683,40 @@ class StudentPicker {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Local Storage fallback methods
+    loadFromLocalStorage() {
+        try {
+            const key = `${this.localStorageKey}_${this.sessionId}`;
+            const data = localStorage.getItem(key);
+            if (data) {
+                this.students = JSON.parse(data);
+                this.updateStudentCount();
+                this.displayStudentsList();
+            }
+        } catch (error) {
+            console.error('Failed to load from local storage:', error);
+            this.students = [];
+        }
+    }
+
+    saveToLocalStorage() {
+        try {
+            const key = `${this.localStorageKey}_${this.sessionId}`;
+            localStorage.setItem(key, JSON.stringify(this.students));
+        } catch (error) {
+            console.error('Failed to save to local storage:', error);
+        }
+    }
+
+    clearLocalStorage() {
+        try {
+            const key = `${this.localStorageKey}_${this.sessionId}`;
+            localStorage.removeItem(key);
+        } catch (error) {
+            console.error('Failed to clear local storage:', error);
+        }
     }
 }
 

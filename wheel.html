@@ -2,16 +2,14 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>عجلة الاختيار العشوائي</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        }
-
-        body {
+        }        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
@@ -20,11 +18,10 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 2rem;
+            padding: 1rem;
             direction: rtl;
-        }
-
-        .wheel-page {
+            overflow-x: hidden;
+        }.wheel-page {
             text-align: center;
             background: rgba(255, 255, 255, 0.95);
             padding: 3rem;
@@ -32,23 +29,50 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             max-width: 600px;
             width: 100%;
+            position: relative;
+        }
+
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2rem;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .wheel-page h1 {
             color: #667eea;
             margin-bottom: 2rem;
             font-size: 2.5rem;
-        }
-
-        .wheel-wrapper {
+        }        .wheel-wrapper {
             position: relative;
             display: inline-block;
             margin: 2rem 0;
+            max-width: 100%;
         }
 
         #wheel {
             border-radius: 50%;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-width: 100%;
+            height: auto;
         }
 
         .wheel-pointer {
@@ -59,9 +83,7 @@
             font-size: 2rem;
             color: #dc3545;
             z-index: 10;
-        }
-
-        .btn {
+        }        .btn {
             padding: 1rem 2rem;
             border: none;
             border-radius: 25px;
@@ -71,6 +93,9 @@
             transition: all 0.3s ease;
             margin: 1rem;
             font-family: inherit;
+            min-height: 48px; /* Touch-friendly size */
+            min-width: 120px;
+            touch-action: manipulation; /* Improve touch responsiveness */
         }
 
         .btn-primary {
@@ -160,45 +185,82 @@
 
         .back-link:hover {
             background: white;
-        }
-
-        @media (max-width: 768px) {
+        }        @media (max-width: 768px) {
             .wheel-page {
-                padding: 2rem 1rem;
+                padding: 1.5rem 0.5rem;
+                max-width: 95%;
             }
 
             #wheel {
-                width: 300px !important;
-                height: 300px !important;
+                width: 280px !important;
+                height: 280px !important;
             }
 
             .wheel-page h1 {
-                font-size: 2rem;
+                font-size: 1.8rem;
+                margin-bottom: 1rem;
+            }
+
+            .wheel-pointer {
+                font-size: 1.8rem;
             }
         }
 
         @media (max-width: 480px) {
+            body {
+                padding: 1rem;
+            }
+
+            .wheel-page {
+                padding: 1rem 0.5rem;
+            }
+
             #wheel {
-                width: 250px !important;
-                height: 250px !important;
+                width: 220px !important;
+                height: 220px !important;
             }
 
             .btn {
-                padding: 0.8rem 1.5rem;
-                font-size: 1rem;
+                padding: 0.8rem 1.2rem;
+                font-size: 0.9rem;
+                margin: 0.5rem;
+            }
+
+            .wheel-page h1 {
+                font-size: 1.5rem;
+            }
+
+            .wheel-pointer {
+                font-size: 1.5rem;
+                top: -8px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            #wheel {
+                width: 200px !important;
+                height: 200px !important;
+            }
+
+            .wheel-page h1 {
+                font-size: 1.3rem;
             }
         }
     </style>
 </head>
 <body>
     <a href="index.html" class="back-link">← العودة للوحة الرئيسية</a>
-    
-    <div class="wheel-page">
+      <div class="wheel-page">
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            جارٍ تحميل العجلة...
+        </div>
+        
         <h1>🎯 عجلة الاختيار العشوائي</h1>
         
         <div id="wheelSection">
             <div class="wheel-wrapper">
-                <canvas id="wheel" width="400" height="400"></canvas>
+                <canvas id="wheel"></canvas>
                 <div class="wheel-pointer">▼</div>
             </div>
             
@@ -232,6 +294,10 @@
                 this.setupEventListeners();
                 this.loadStudentsFromUrl();
             }            loadStudentsFromUrl() {
+                // Show loading indicator
+                const loadingIndicator = document.getElementById('loadingIndicator');
+                if (loadingIndicator) loadingIndicator.style.display = 'block';
+                
                 const urlParams = new URLSearchParams(window.location.search);
                 const studentsData = urlParams.get('students');
                 const winnerCount = urlParams.get('winners');
@@ -263,6 +329,9 @@
                     return;
                 }
                 
+                // Hide loading indicator
+                if (loadingIndicator) loadingIndicator.style.display = 'none';
+                
                 this.drawWheel();
             }
 
@@ -276,19 +345,47 @@
                 if (stopWheelBtn) stopWheelBtn.addEventListener('click', () => this.stopWheel());
                 if (newPickBtn) newPickBtn.addEventListener('click', () => this.resetForNewPick());
                 if (backBtn) backBtn.addEventListener('click', () => window.location.href = 'index.html');
-            }
-
-            initializeWheel() {
+            }            initializeWheel() {
                 this.wheelCanvas = document.getElementById('wheel');
                 if (!this.wheelCanvas) {
                     console.error('عنصر العجلة غير موجود');
                     return;
                 }
                 
+                // Make wheel responsive
+                this.resizeWheel();
+                window.addEventListener('resize', () => this.resizeWheel());
+                
                 this.wheelCtx = this.wheelCanvas.getContext('2d');
                 this.currentRotation = 0;
                 this.startRotation = 0;
                 this.targetRotation = 0;
+            }
+
+            resizeWheel() {
+                const container = this.wheelCanvas.parentElement;
+                const maxSize = Math.min(400, window.innerWidth - 40);
+                let wheelSize;
+                
+                if (window.innerWidth <= 360) {
+                    wheelSize = 200;
+                } else if (window.innerWidth <= 480) {
+                    wheelSize = 220;
+                } else if (window.innerWidth <= 768) {
+                    wheelSize = 280;
+                } else {
+                    wheelSize = 400;
+                }
+                
+                this.wheelCanvas.width = wheelSize;
+                this.wheelCanvas.height = wheelSize;
+                this.wheelCanvas.style.width = wheelSize + 'px';
+                this.wheelCanvas.style.height = wheelSize + 'px';
+                
+                // Redraw if students are loaded
+                if (this.students.length > 0) {
+                    this.drawWheel();
+                }
             }            drawWheel(highlightIndex = -1) {
                 if (!this.wheelCtx || this.students.length === 0) return;
                 
@@ -311,6 +408,9 @@
                     '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
                 ];
                 
+                // Calculate font size based on canvas size and number of students
+                const baseFontSize = Math.max(8, Math.min(16, radius / (studentCount * 0.8)));
+                
                 for (let i = 0; i < studentCount; i++) {
                     const startAngle = i * anglePerSegment;
                     const endAngle = (i + 1) * anglePerSegment;
@@ -330,20 +430,30 @@
                     ctx.lineWidth = i === highlightIndex ? 4 : 2;
                     ctx.stroke();
                     
+                    // Draw text
                     ctx.save();
                     ctx.rotate(startAngle + anglePerSegment / 2);
                     ctx.textAlign = 'left';
                     ctx.fillStyle = '#333';
-                    ctx.font = i === highlightIndex ? 'bold 14px Arial' : 'bold 12px Arial';
+                    
+                    // Responsive font sizing
+                    const fontSize = i === highlightIndex ? baseFontSize + 2 : baseFontSize;
+                    ctx.font = `bold ${fontSize}px Arial`;
                     
                     const name = this.students[i].name;
-                    const truncatedName = name.length > 15 ? name.substring(0, 12) + '...' : name;
-                    ctx.fillText(truncatedName, radius * 0.3, 5);
+                    // Adjust text truncation based on wheel size
+                    const maxLength = radius < 150 ? 8 : (radius < 200 ? 12 : 15);
+                    const truncatedName = name.length > maxLength ? name.substring(0, maxLength - 3) + '...' : name;
+                    
+                    // Position text based on radius
+                    const textRadius = Math.max(radius * 0.25, 30);
+                    ctx.fillText(truncatedName, textRadius, fontSize / 3);
                     ctx.restore();
                 }
                 
+                // Draw center circle
                 ctx.beginPath();
-                ctx.arc(0, 0, 20, 0, 2 * Math.PI);
+                ctx.arc(0, 0, Math.max(15, radius * 0.05), 0, 2 * Math.PI);
                 ctx.fillStyle = '#333';
                 ctx.fill();
                 
@@ -404,14 +514,14 @@
                 // Calculate the angle of each segment
                 const segmentSize = (2 * Math.PI) / studentCount;
                 
-                // The pointer is at the top (12 o'clock position), so we need to calculate
-                // which segment the pointer is pointing to after the wheel stops
-                // We subtract the rotation from π/2 (top position) and normalize
-                const pointerAngle = (Math.PI / 2 - normalizedRotation + 2 * Math.PI) % (2 * Math.PI);
+                // The pointer is at the top (12 o'clock position)
+                // Since we rotate the entire wheel, we need to find which segment is under the pointer
+                // The pointer points "down" into the wheel at angle 0 (top of circle)
+                // We need to find which segment the top position (angle 0) falls into after rotation
                 
-                // Calculate which segment the pointer is in
-                // We need to account for the fact that segments are drawn starting from 0 radians
-                let winnerIndex = Math.floor(pointerAngle / segmentSize);
+                // Calculate which segment the top position falls into
+                // Since rotation is clockwise, we need to reverse the calculation
+                let winnerIndex = Math.floor(normalizedRotation / segmentSize);
                 
                 // Ensure the index is within bounds
                 winnerIndex = winnerIndex % studentCount;
@@ -420,7 +530,6 @@
                 console.log('Debug info:');
                 console.log('Current rotation:', this.currentRotation);
                 console.log('Normalized rotation:', normalizedRotation);
-                console.log('Pointer angle:', pointerAngle);
                 console.log('Segment size:', segmentSize);
                 console.log('Winner index:', winnerIndex);
                 console.log('Selected student:', this.students[winnerIndex]);
